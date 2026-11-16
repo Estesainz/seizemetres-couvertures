@@ -45,7 +45,9 @@ def en_attente():
 def publier(chemin, e):
     print("Publication", e["titre"], e["container_id"], flush=True)
     if e.get("essai_a_blanc"):
-        e.update(statut="TEST OK", publie_le=datetime.now(timezone.utc).isoformat()); enregistrer(chemin, e, f"Test robot {e['titre']}"); return
+        try: compte = api(f"{os.environ['IG_USER_ID']}?fields=username").get("username") if TOK else "CLÉ ABSENTE"
+        except Exception as err: compte = f"CLÉ REFUSÉE {str(err)[:200]}"
+        e.update(statut="TEST OK", compte=compte, publie_le=datetime.now(timezone.utc).isoformat()); enregistrer(chemin, e, f"Test robot {e['titre']}"); return
     try:
         s = api(f"{e['container_id']}?fields=status_code")
         if s.get("status_code") == "PUBLISHED":
