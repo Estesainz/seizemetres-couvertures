@@ -35,11 +35,28 @@ def enregistrer(chemin, e, message):
 
 def heure(e): return datetime.fromisoformat(e["heure_utc"].replace("Z", "+00:00")).timestamp()
 
+# Créneau à plus de 23 h : pas de conteneur à l'avance (il expire en 24 h). Le robot le crée lui-même 15 min avant
+# l'heure, à partir de video_url + cover_url + legende (vidéo et couverture déjà en ligne sur GitHub Pages).
+AVANCE_CONTENEUR = 15 * 60
+def heure_action(e): return heure(e) - (0 if e.get("container_id") else AVANCE_CONTENEUR)
+
+def creer_conteneur(e):
+    base = {"media_type": "REELS", "caption": e["legende"], "share_to_feed": "true", "video_url": e["video_url"]}
+    base.update({"cover_url": e["cover_url"]} if e.get("cover_url") else {"thumb_offset": "500"})
+    cid = api(f"{os.environ['IG_USER_ID']}/media", base)["id"]; print("conteneur", cid, flush=True)
+    t0 = time.time()
+    while time.time() - t0 < 600:
+        s = api(f"{cid}?fields=status_code,status")
+        if s.get("status_code") == "FINISHED": return cid
+        if s.get("status_code") in ("ERROR", "EXPIRED"): raise RuntimeError(f"Meta : {s}")
+        time.sleep(5)
+    raise RuntimeError("traitement Meta > 10 min")
+
 def en_attente():
     out = []
     for c in sorted(glob.glob("planning/*.json")):
         e = json.load(open(c))
-        if not e.get("statut"): out.append((heure(e), c, e))
+        if not e.get("statut"): out.append((heure_action(e), c, e))
     return sorted(out)
 
 def publier(chemin, e):
@@ -49,6 +66,10 @@ def publier(chemin, e):
         except Exception as err: compte = f"CLÉ REFUSÉE {str(err)[:200]}"
         e.update(statut="TEST OK", compte=compte, publie_le=datetime.now(timezone.utc).isoformat()); enregistrer(chemin, e, f"Test robot {e['titre']}"); return
     try:
+        if not e.get("container_id") and not e.get("essai_a_blanc"):
+            e["container_id"] = creer_conteneur(e)
+            enregistrer(chemin, e, f"Robot : conteneur prêt {e['titre']}")
+            while time.time() < heure(e): time.sleep(min(heure(e) - time.time(), 30))
         s = api(f"{e['container_id']}?fields=status_code")
         if s.get("status_code") == "PUBLISHED":
             e.update(statut="DEJA PUBLIE")
