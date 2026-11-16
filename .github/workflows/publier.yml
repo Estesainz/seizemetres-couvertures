@@ -1,0 +1,27 @@
+name: Publier les Reels planifiés
+on:
+  push:
+    branches: [main]
+    paths: ["planning/**"]
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+concurrency:
+  group: publication
+  cancel-in-progress: true
+permissions:
+  contents: write
+jobs:
+  publier:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+      - name: Publier à l'heure prévue
+        env:
+          INSTAGRAM_ACCESS_TOKEN: ${{ secrets.INSTAGRAM_ACCESS_TOKEN }}
+          IG_USER_ID: "17841466732905761"
+        run: |
+          git config user.name "Seize Metres robot"
+          git config user.email "noreply@github.com"
+          python3 robot/publier_planifie.py
