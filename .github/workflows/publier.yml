@@ -4,20 +4,23 @@ on:
     branches: [main]
     paths: ["planning/**"]
   schedule:
-    - cron: "*/15 * * * *"
+    - cron: "*/15 * * * *"   # simple filet : le cron GitHub est très irrégulier
   workflow_dispatch:
 concurrency:
   group: publication
-  cancel-in-progress: true
+  # Ne JAMAIS tuer une run qui attend un créneau : la nouvelle attend son tour.
+  cancel-in-progress: false
 permissions:
   contents: write
+  actions: write
 jobs:
   publier:
     runs-on: ubuntu-latest
-    timeout-minutes: 350
+    timeout-minutes: 358
     steps:
       - uses: actions/checkout@v4
       - name: Publier à l'heure prévue
+        timeout-minutes: 345
         env:
           INSTAGRAM_ACCESS_TOKEN: ${{ secrets.INSTAGRAM_ACCESS_TOKEN }}
           IG_USER_ID: "17841466732905761"
@@ -25,3 +28,16 @@ jobs:
           git config user.name "Seize Metres robot"
           git config user.email "noreply@github.com"
           python3 robot/publier_planifie.py
+      - name: Relais automatique (tant qu'il reste des Reels à publier)
+        if: always() && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ECHEC: ${{ job.status != 'success' }}
+        run: |
+          git pull -q --rebase origin main || true
+          RESTE=$(python3 -c "import glob,json;print(sum(1 for c in glob.glob('planning/*.json') if not json.load(open(c)).get('statut')))")
+          echo "Entrées en attente : $RESTE"
+          if [ "$RESTE" -gt 0 ]; then
+            if [ "$ECHEC" = "true" ]; then sleep 120; fi
+            gh workflow run publier.yml --ref main && echo "Run suivante lancée."
+          fi
