@@ -101,7 +101,13 @@ while True:
     if not file: print("Rien à publier."); break
     t, chemin, e = file[0]
     reste = t - time.time()
-    if reste <= 0: publier(chemin, e); continue
+    if reste <= 0:
+        # Dernière vérification juste avant de publier : l'heure a pu être décalée ou la vidéo publiée ailleurs.
+        actualiser()
+        if not os.path.exists(chemin): continue
+        e = json.load(open(chemin))
+        if e.get("statut") or heure_action(e) > time.time(): continue
+        publier(chemin, e); continue
     if time.time() - DEBUT > DUREE_MAX: print(f"Prochaine publication dans {reste/60:.0f} min ({e['titre']}) : relais par la run suivante."); break
     dodo = min(reste, DEBUT + DUREE_MAX - time.time())
     print(f"Sommeil {dodo:.0f} s ; prochaine : {e['heure_utc']} ({e['titre']})", flush=True)
