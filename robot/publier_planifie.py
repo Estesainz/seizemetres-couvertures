@@ -4,14 +4,17 @@ Chaque fichier planning/*.json = un Reel déjà préparé (conteneur Instagram F
   {"titre": "...", "container_id": "...", "heure_utc": "2026-11-17T17:04:00Z", "fichier_depot": "xxx.mp4" | null}
 Le robot publie chaque entrée à son heure, écrit le résultat dans le fichier ("statut", "permalink"),
 et retire la vidéo du dépôt public. Anti-doublon : un conteneur déjà PUBLISHED n'est jamais republié.
-Une exécution attend (sleep) jusqu'à 5 h 40 la prochaine heure prévue ; le cron toutes les 15 min prend le relais au-delà.
+Une exécution tourne au plus ~5 h 15 (limite GitHub : 6 h), relit le dépôt toutes les 2 min (nouvelles entrées,
+publications faites à la main), puis s'arrête ; le workflow relance alors AUTOMATIQUEMENT une nouvelle exécution
+(workflow_dispatch) tant qu'il reste des entrées : la chaîne ne dépend plus du cron GitHub (trop irrégulier, simple filet).
 """
 import glob, json, os, subprocess, sys, time, urllib.parse, urllib.request
 from datetime import datetime, timezone
 
 TOK = os.environ.get("INSTAGRAM_ACCESS_TOKEN", "")
 G = "https://graph.facebook.com/v21.0"
-ATTENTE_MAX = 5 * 3600 + 40 * 60
+DUREE_MAX = int(os.environ.get("DUREE_MAX", 5 * 3600 + 15 * 60))  # ensuite : relais par la run suivante
+VERIF = 120
 DEBUT = time.time()
 
 def api(path, data=None):
@@ -60,7 +63,7 @@ def en_attente():
     return sorted(out)
 
 def publier(chemin, e):
-    print("Publication", e["titre"], e["container_id"], flush=True)
+    print("Publication", e["titre"], e.get("container_id"), flush=True)
     if e.get("essai_a_blanc"):
         try: compte = api(f"{os.environ['IG_USER_ID']}?fields=username").get("username") if TOK else "CLÉ ABSENTE"
         except Exception as err: compte = f"CLÉ REFUSÉE {str(err)[:200]}"
@@ -89,12 +92,17 @@ def publier(chemin, e):
     enregistrer(chemin, e, f"Robot : {e['titre']} -> {e['statut']}")
     print(json.dumps(e, ensure_ascii=False), flush=True)
 
+def actualiser():
+    # Récupère les entrées ajoutées et les statuts écrits ailleurs depuis le lancement (anti-doublon).
+    if os.environ.get("SANS_GIT") != "1": git("pull", "-q", "--rebase", "origin", "main", check=False)
+
 while True:
+    actualiser()
     file = en_attente()
     if not file: print("Rien à publier."); break
     t, chemin, e = file[0]
     reste = t - time.time()
     if reste <= 0: publier(chemin, e); continue
-    if time.time() + reste - DEBUT > ATTENTE_MAX: print(f"Prochaine publication dans {reste/60:.0f} min : le cron prendra le relais."); break
+    if time.time() - DEBUT > DUREE_MAX: print(f"Prochaine publication dans {reste/60:.0f} min ({e['titre']}) : relais par la run suivante."); break
     print(f"Attente {reste:.0f} s jusqu'à {e['heure_utc']} ({e['titre']})", flush=True)
-    time.sleep(min(reste, 600))
+    time.sleep(max(1, min(reste, VERIF)))
