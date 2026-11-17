@@ -1,1 +1,10 @@
-{"titre": "Test cle Instagram (aucune publication)", "container_id": "0", "heure_utc": "2026-11-17T02:10:00Z", "fichier_depot": null, "essai_a_blanc": true}
+{
+ "titre": "Test cle Instagram (aucune publication)",
+ "container_id": "0",
+ "heure_utc": "2026-11-17T02:10:00Z",
+ "fichier_depot": null,
+ "essai_a_blanc": true,
+ "statut": "TEST OK",
+ "compte": "seizemetres",
+ "publie_le": "2026-11-17T02:10:11.834101+00:00"
+}
