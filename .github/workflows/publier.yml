@@ -3,13 +3,16 @@ on:
   push:
     branches: [main]
     paths: ["planning/**"]
-  schedule:
-    - cron: "*/15 * * * *"   # simple filet : le cron GitHub est très irrégulier
   workflow_dispatch:
+  schedule:
+    # Réveil de secours ~30 min avant chaque créneau habituel (heure de Zurich en hiver = UTC+1).
+    # Si une run dort déjà, celui-ci attend simplement son tour : jamais de doublon.
+    - cron: "30 6,11,16,18,19 * * *"
 concurrency:
   group: publication
-  # Ne JAMAIS tuer une run qui attend un créneau : la nouvelle attend son tour.
-  cancel-in-progress: false
+  # Un ajout au planning (push) remplace la run qui dort, pour voir la nouvelle entrée.
+  # Une relance (workflow_dispatch) ne tue jamais une run en cours : elle attend son tour.
+  cancel-in-progress: ${{ github.event_name == 'push' }}
 permissions:
   contents: write
   actions: write
