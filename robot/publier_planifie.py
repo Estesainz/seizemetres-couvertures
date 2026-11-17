@@ -4,7 +4,7 @@ Chaque fichier planning/*.json = un Reel déjà préparé (conteneur Instagram F
   {"titre": "...", "container_id": "...", "heure_utc": "2026-11-17T17:04:00Z", "fichier_depot": "xxx.mp4" | null}
 Le robot publie chaque entrée à son heure, écrit le résultat dans le fichier ("statut", "permalink"),
 et retire la vidéo du dépôt public. Anti-doublon : un conteneur déjà PUBLISHED n'est jamais republié.
-Une exécution tourne au plus ~5 h 15 (limite GitHub : 6 h), relit le dépôt toutes les 2 min (nouvelles entrées,
+Une exécution tourne au plus ~5 h 15 (limite GitHub : 6 h), relit le planning toutes les 30 min (nouvelles entrées,
 publications faites à la main), puis s'arrête ; le workflow relance alors AUTOMATIQUEMENT une nouvelle exécution
 (workflow_dispatch) tant qu'il reste des entrées : la chaîne ne dépend plus du cron GitHub (trop irrégulier, simple filet).
 """
@@ -14,7 +14,7 @@ from datetime import datetime, timezone
 TOK = os.environ.get("INSTAGRAM_ACCESS_TOKEN", "")
 G = "https://graph.facebook.com/v21.0"
 DUREE_MAX = int(os.environ.get("DUREE_MAX", 5 * 3600 + 15 * 60))  # ensuite : relais par la run suivante
-VERIF = 120
+VERIF = 30 * 60  # relit le planning toutes les 30 min ; l'heure de publication reste exacte
 DEBUT = time.time()
 
 def api(path, data=None):
